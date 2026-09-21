@@ -165,6 +165,23 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
 .video-empty p{font-size:19px}
 .video-empty .btn{margin-top:22px;background:transparent;color:#fff;border-color:#6c6660}
 .video-empty .btn:hover{border-color:#fff}
+
+/* 영상 팝업 */
+body.vlock{overflow:hidden}
+.vmodal{position:fixed;inset:0;z-index:120;display:none;place-items:center;
+  padding:clamp(16px,4vw,56px);background:rgba(12,12,11,.88)}
+.vmodal.on{display:grid}
+.vmodal-box{position:relative;width:min(1180px,100%);aspect-ratio:16/9;background:#000;
+  box-shadow:0 30px 80px rgba(0,0,0,.55);animation:vpop .28s var(--ease-out) both}
+.vmodal-box iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.vmodal-close{position:absolute;top:-54px;right:0;width:44px;height:44px;border:1px solid #6c6660;
+  border-radius:50%;background:transparent;color:#fff;font-size:24px;line-height:1;cursor:pointer;
+  transition:border-color .2s,background .2s}
+.vmodal-close:hover{border-color:#fff;background:#ffffff14}
+@keyframes vpop{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+@media (max-width:640px){
+  .vmodal-close{top:auto;bottom:-58px;right:50%;transform:translateX(50%)}
+}
 .video-bottom{display:flex;flex-wrap:wrap;gap:18px;justify-content:space-between;align-items:center;
   padding:22px 30px;border-top:1px solid var(--line)}
 .video-bottom p{font-size:17px;color:var(--muted)}
@@ -711,9 +728,9 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
       </button>
 
       <div class="video-frame" id="video-frame">
-        <!-- ▼▼ 영상 파일 연결 위치 ▼▼  src="" 안에 파일명을 넣으세요 (예: week1.mp4) -->
+        <!-- 영상은 유튜브 팝업으로 재생합니다. 영상 교체는 아래 스크립트의 YT_ID 를 바꾸세요.
+             아래 <video> 는 로컬 파일로 돌리고 싶을 때를 위해 남겨둔 것이며 평소엔 보이지 않습니다. -->
         <video id="video-el" controls playsinline preload="metadata" src=""></video>
-        <!-- ▲▲ 영상 파일 연결 위치 ▲▲ -->
         <div class="video-empty" id="video-empty">
           <p>영상 파일이 아직 연결되지 않았습니다.</p>
           <label class="btn" for="video-file">이 기기에서 영상 파일 선택</label>
@@ -1176,6 +1193,17 @@ button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
 
 <div class="org">워크이노베이션센터 | AI디자인랩</div>
 
+<!-- ========== 영상 팝업 ========== -->
+<div class="vmodal" id="vmodal" role="dialog" aria-modal="true"
+     aria-label="WEEK 1 교육 영상" aria-hidden="true">
+  <div class="vmodal-box">
+    <button class="vmodal-close" id="vmodal-close" aria-label="영상 닫기">&times;</button>
+    <iframe id="vmodal-frame" title="WEEK 1 교육 영상" src=""
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+  </div>
+</div>
+
 <script>
 'use strict';
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1293,29 +1321,38 @@ document.querySelectorAll('main .scene').forEach((scene, i) => {
 document.querySelectorAll('.journey a[aria-disabled="true"]')
   .forEach(a => a.addEventListener('click', e => e.preventDefault()));
 
-/* ---------- P3 · 영상 ---------- */
+/* ---------- P3 · 영상 (유튜브 팝업) ---------- */
 (() => {
+  const YT_ID = 'gSd0ku34OC8';                       // ← 영상 교체 시 이 값만 바꾸면 됩니다
+  const SRC = 'https://www.youtube-nocookie.com/embed/' + YT_ID +
+              '?autoplay=1&rel=0&modestbranding=1&playsinline=1';
+
   const thumb = document.getElementById('video-play');
-  const frame = document.getElementById('video-frame');
-  const el = document.getElementById('video-el');
-  const empty = document.getElementById('video-empty');
-  const file = document.getElementById('video-file');
-  const hasSrc = () => !!(el.getAttribute('src') || '').trim();
+  const modal = document.getElementById('vmodal');
+  const frame = document.getElementById('vmodal-frame');
+  const closeBtn = document.getElementById('vmodal-close');
+  if (!thumb || !modal) return;
 
-  thumb.addEventListener('click', () => {
-    thumb.hidden = true;
-    frame.classList.add('on');
-    if (hasSrc()) { empty.hidden = true; el.play().catch(() => {}); }
-    else { el.style.display = 'none'; }
-  });
+  const open = () => {
+    frame.src = SRC;
+    modal.classList.add('on');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('vlock');
+    closeBtn.focus();
+  };
+  const close = () => {
+    modal.classList.remove('on');
+    modal.setAttribute('aria-hidden', 'true');
+    frame.src = '';                         // 닫으면 재생 정지
+    document.body.classList.remove('vlock');
+    thumb.focus();
+  };
 
-  file.addEventListener('change', () => {
-    const f = file.files && file.files[0];
-    if (!f) return;
-    el.src = URL.createObjectURL(f);
-    el.style.display = 'block';
-    empty.hidden = true;
-    el.play().catch(() => {});
+  thumb.addEventListener('click', open);
+  closeBtn.addEventListener('click', close);
+  modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.classList.contains('on')) close();
   });
 })();
 
@@ -1606,5 +1643,6 @@ document.querySelectorAll('.journey a[aria-disabled="true"]')
   render();
 })();
 </script>
+
 </body>
 </html>
